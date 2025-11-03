@@ -1,0 +1,37 @@
+{
+  "members": [
+    {
+      "id": 1,
+      "name": "Alex Palmer",
+      "email": "alex.palmer@example.com",
+      "phone": "+61400111222",
+      "membership_type": "Premium",
+      "status": "Active",
+      "join_date": "2024-01-15",
+      "last_checkin": "2025-10-30",
+      "expiry_date": "2026-01-15"
+    },
+    {
+      "id": 2,
+      "name": "Sophie Reid",
+      "email": "sophie.reid@example.com",
+      "phone": "+61400111223",
+      "membership_type": "Basic",
+      "status": "Suspended",
+      "join_date": "2023-12-01",
+      "last_checkin": "2025-07-21",
+      "expiry_date": "2025-12-01"
+    },
+    {
+      "id": 3,
+      "name": "Jack West",
+      "email": "jack.west@example.com",
+      "phone": "+61400111224",
+      "membership_type": "VIP",
+      "status": "Active",
+      "join_date": "2022-06-10",
+      "last_checkin": "2025-11-02",
+      "expiry_date": "2026-06-10"
+    }
+  ]
+}
