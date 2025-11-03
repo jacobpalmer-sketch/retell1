@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>FitZone AI 3D Analytics Dashboard</title>
+
+<!-- 3D + Charts -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:Inter,system-ui,sans-serif;background:#0b1220;color:#e9efff;overflow:hidden;
+}
+#scene{position:fixed;inset:0;z-index:0}
+#ui{
+  position:absolute;top:0;left:0;right:0;bottom:0;z-index:5;
+  display:flex;flex-direction:column;justify-content:space-between;
+}
+header{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:16px 28px;background:rgba(11,18,32,.65);backdrop-filter:blur(6px);
+  border-bottom:1px solid rgba(255,255,255,.05);
+}
+.brand{display:flex;align-items:center;gap:12px}
+.brand h1{font-size:20px;letter-spacing:.3px}
+.logo{
+  width:38px;height:38px;border-radius:12px;
+  background:conic-gradient(from 200deg,#00eaff,#00ffa3,#00eaff);
+  box-shadow:0 0 25px rgba(0,255,255,.4);
+}
+.btn{
+  background:#13213a;border:1px solid #264272;color:#aeeaff;padding:8px 14px;border-radius:8px;cursor:pointer;
+  transition:.15s; font-size:13px;
+}
+.btn:hover{background:#183157}
+main{
+  flex:1;display:grid;grid-template-columns:340px 1fr;gap:18px;padding:18px;
+}
+aside{
+  background:rgba(16,25,45,.65);border:1px solid #1e2c48;border-radius:14px;padding:18px;
+  display:flex;flex-direction:column;justify-content:space-between;min-height:400px;
+}
+aside h2{font-size:15px;margin-bottom:8px;color:#aeeaff;text-transform:uppercase;letter-spacing:.08em}
+.stat{margin:6px 0}
+.stat .label{font-size:13px;color:#b7c8e4}
+.stat .val{font-size:26px;font-weight:700}
+.chartwrap{
+  background:rgba(16,25,45,.65);border:1px solid #1e2c48;border-radius:14px;
+  padding:18px;height:360px;
+}
+footer{
+  text-align:center;font-size:12px;color:#7d8cab;padding:10px;background:rgba(11,18,32,.65);
+}
+#voice{position:absolute;bottom:18px;right:22px;z-index:10;background:#111c33;
+border:1px solid #264272;border-radius:999px;padding:10px 16px;cursor:pointer;box-shadow:0 0 10px rgba(0,255,255,.2)}
+#voice.listening{background:#09202d;border-color:#00ffa3;box-shadow:0 0 16px rgba(0,255,163,.5)}
+.dark body{background:#eaf3ff;color:#09111f}
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<div id="ui">
+  <header>
+    <div class="brand">
+      <div class="logo"></div>
+      <h1>FitZone AI Analytics Suite</h1>
+    </div>
+    <div>
+      <button class="btn" id="toggleTheme">🌙 Toggle Theme</button>
+      <button class="btn" id="regen">♻️ Regenerate Data</button>
+    </div>
+  </header>
+
+  <main>
+    <aside>
+      <div>
+        <h2>Live KPIs</h2>
+        <div class="stat"><div class="label">Total Members</div><div class="val" id="valMembers">—</div></div>
+        <div class="stat"><div class="label">Active Today</div><div class="val" id="valActive">—</div></div>
+        <div class="stat"><div class="label">Avg. Session (min)</div><div class="val" id="valSession">—</div></div>
+        <div class="stat"><div class="label">Avg. Calories</div><div class="val" id="valCal">—</div></div>
+      </div>
+      <div>
+        <h2>AI Insights</h2>
+        <p id="aiInsight" style="font-size:13px;line-height:1.4;color:#b7c8e4;">Loading insights...</p>
+      </div>
+    </aside>
+    <div style="display:flex;flex-direction:column;gap:18px">
+      <div class="chartwrap"><canvas id="chartActivity"></canvas></div>
+      <div class="chartwrap"><canvas id="chartPlans"></canvas></div>
+    </div>
+  </main>
+
+  <footer>© 2025 FitZone Labs — AI powered performance analytics</footer>
+</div>
+
+<div id="voice">🎙️ Speak</div>
+
+<script>
+/* === 3D BACKGROUND === */
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,0.1,1000);
+const renderer=new THREE.WebGLRenderer({canvas:document.getElementById("scene"),alpha:true});
+renderer.setSize(innerWidth,innerHeight);camera.position.z=5;
+
+const geom=new THREE.TorusKnotGeometry(1,0.3,128,32);
+const mat=new THREE.MeshStandardMaterial({color:0x00ffa3,metalness:0.6,roughness:0.25});
+const knot=new THREE.Mesh(geom,mat);scene.add(knot);
+const light=new THREE.PointLight(0x00eaff,1.6);light.position.set(5,5,5);scene.add(light);
+const back=new THREE.PointLight(0x0041ff,1);back.position.set(-5,-5,-5);scene.add(back);
+
+function animate(){
+  requestAnimationFrame(animate);
+  knot.rotation.x+=0.003; knot.rotation.y+=0.004;
+  renderer.render(scene,camera);
+}
+animate();
+addEventListener("resize",()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+
+/* === DATA + CHARTS === */
+let data=[];
+function generateData(){
+  data=[];
+  for(let i=0;i<12;i++){
+    data.push({
+      month:new Date(2025,i).toLocaleString("default",{month:"short"}),
+      active:200+Math.floor(Math.random()*300),
+      calories:40000+Math.floor(Math.random()*10000),
+      basic:Math.floor(Math.random()*50)+20,
+      premium:Math.floor(Math.random()*80)+40,
+      vip:Math.floor(Math.random()*30)+10
+    });
+  }
+  updateKPI();
+  drawCharts();
+  aiInsight.textContent=randomInsight();
+}
+const aiInsight=document.getElementById("aiInsight");
+function updateKPI(){
+  const total=1200+Math.floor(Math.random()*800);
+  const active=Math.floor(total*(0.4+Math.random()*0.2));
+  const session=45+Math.floor(Math.random()*30);
+  const cal=500+Math.floor(Math.random()*400);
+  valMembers.textContent=total;
+  valActive.textContent=active;
+  valSession.textContent=session;
+  valCal.textContent=cal;
+}
+let chartA,chartP;
+function drawCharts(){
+  const ctxA=document.getElementById("chartActivity");
+  const ctxP=document.getElementById("chartPlans");
+  if(chartA) chartA.destroy(); if(chartP) chartP.destroy();
+  chartA=new Chart(ctxA,{
+    type:"line",
+    data:{
+      labels:data.map(d=>d.month),
+      datasets:[
+        {label:"Active Users",data:data.map(d=>d.active),borderColor:"#00ffa3",backgroundColor:"rgba(0,255,163,.25)",fill:true,tension:.3},
+        {label:"Calories Burned",data:data.map(d=>d.calories/1000),borderColor:"#00eaff",backgroundColor:"rgba(0,234,255,.25)",fill:true,tension:.3,yAxisID:"y1"}
+      ]
+    },
+    options:{
+      scales:{
+        y:{beginAtZero:true,ticks:{color:"#aeeaff"}},
+        y1:{beginAtZero:true,position:"right",grid:{drawOnChartArea:false},ticks:{color:"#6ee7ff"}}
+      },
+      plugins:{legend:{labels:{color:"#dbeaff"}}}
+    }
+  });
+  chartP=new Chart(ctxP,{
+    type:"bar",
+    data:{
+      labels:data.map(d=>d.month),
+      datasets:[
+        {label:"Basic",data:data.map(d=>d.basic),backgroundColor:"#0091ff"},
+        {label:"Premium",data:data.map(d=>d.premium),backgroundColor:"#00ffa3"},
+        {label:"VIP",data:data.map(d=>d.vip),backgroundColor:"#ff7aec"}
+      ]
+    },
+    options:{plugins:{legend:{labels:{color:"#dbeaff"}}},scales:{x:{ticks:{color:"#dbeaff"}},y:{ticks:{color:"#dbeaff"}}}}
+  });
+}
+function randomInsight(){
+  const ideas=[
+    "AI predicts a 12% increase in Premium plan signups next month.",
+    "Members averaged 48 min sessions last week, up 5%.",
+    "VIP members show a 19% higher retention rate.",
+    "Peak check-ins at 6 PM — consider staffing adjustments.",
+    "AI flags potential attrition in Basic tier by Q1.",
+    "Average calories burned per member crossed 520 kcal."
+  ];
+  return rand(ideas);
+}
+function rand(arr){return arr[Math.floor(Math.random()*arr.length)]}
+
+/* === VOICE ASSISTANT === */
+const btnVoice=document.getElementById("voice");
+let listening=false;
+const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+const synth=window.speechSynthesis;
+if(SpeechRecognition){
+  const recog=new SpeechRecognition();
+  recog.continuous=false; recog.lang="en-AU";
+  recog.onresult=e=>{
+    const phrase=e.results[0][0].transcript.toLowerCase();
+    respondToVoice(phrase);
+  };
+  btnVoice.onclick=()=>{
+    if(listening){recog.stop();listening=false;btnVoice.classList.remove("listening");}
+    else{recog.start();listening=true;btnVoice.classList.add("listening");}
+  };
+}else{
+  btnVoice.textContent="Voice Not Supported";
+  btnVoice.style.opacity=.4;
+}
+function speak(text){
+  const u=new SpeechSynthesisUtterance(text);
+  u.rate=1.05; u.pitch=1.0; synth.speak(u);
+}
+function respondToVoice(p){
+  if(p.includes("members")) speak(`We currently have ${valMembers.textContent} members.`);
+  else if(p.includes("active")) speak(`About ${valActive.textContent} members are active today.`);
+  else if(p.includes("session")) speak(`Average session length is ${valSession.textContent} minutes.`);
+  else if(p.includes("insight")) speak(aiInsight.textContent);
+  else speak("Sorry, I didn't understand. Try asking about members or insights.");
+}
+
+/* === THEME TOGGLE === */
+const btnTheme=document.getElementById("toggleTheme");
+btnTheme.onclick=()=>{
+  document.body.classList.toggle("dark");
+  const dark=document.body.classList.contains("dark");
+  if(dark){
+    renderer.setClearColor("#eaf3ff");
+  }else renderer.setClearColor("#000000",0);
+};
+
+/* === EVENTS === */
+document.getElementById("regen").onclick=generateData;
+generateData();
+
+/* === Periodic Auto Updates === */
+setInterval(()=>{
+  updateKPI();
+  if(Math.random()<.4) aiInsight.textContent=randomInsight();
+},6000);
+</script>
+</body>
+</html>
