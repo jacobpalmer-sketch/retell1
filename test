@@ -1,0 +1,690 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>FitZone — Gym Membership Dashboard (Single-File App)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Single-file app: everything (HTML+CSS+JS+Data) is in this one document. -->
+  <!-- Drop this file into a new GitHub repo as index.html. Import to Replit and run the web app. -->
+
+  <!-- Charts via CDN (no build step needed) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0b1220; --panel:#121a2b; --muted:#a5b4c7; --text:#e8eefc; --accent:#6ee7ff;
+      --accent2:#9bffb7; --danger:#ff7a7a; --warn:#ffd166; --ok:#83f7a7; --card:#0f1726;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial;
+      background: radial-gradient(1200px 800px at 10% -10%, #1b2a46, transparent) fixed,
+                  radial-gradient(900px 600px at 110% 10%, #16345c, transparent) fixed,
+                  var(--bg); color:var(--text);
+    }
+    header{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:18px 22px; position:sticky; top:0; backdrop-filter: blur(6px);
+      background: rgba(11,18,32,0.6); border-bottom:1px solid #1e2a46; z-index:5;
+    }
+    .brand{display:flex; align-items:center; gap:12px}
+    .logo{
+      width:36px; height:36px; border-radius:10px;
+      background: conic-gradient(from 220deg, #6ee7ff, #9bffb7, #6ee7ff);
+      box-shadow: 0 0 30px rgba(110,231,255,.25);
+    }
+    .brand h1{font-size:18px; margin:0; letter-spacing:.3px}
+    .top-actions{display:flex; gap:8px; align-items:center}
+    .btn{
+      border:1px solid #2a3a60; background:#122041; color:var(--text); padding:8px 12px; border-radius:8px;
+      transition:.15s ease; cursor:pointer; font-size:13px
+    }
+    .btn:hover{transform:translateY(-1px); background:#132753}
+    .btn-accent{border-color:#2a4356; background:linear-gradient(180deg,#10233c,#0d1b30); color:#c9f1ff}
+    .layout{display:grid; grid-template-columns:280px 1fr; gap:18px; padding:18px; max-width:1400px; margin:0 auto}
+    nav{
+      background: linear-gradient(180deg,#111a2d,#0f1726); border:1px solid #1f2b47; border-radius:14px;
+      padding:14px; height: calc(100vh - 96px); position:sticky; top:78px; overflow:auto;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02), 0 6px 18px rgba(0,0,0,.25);
+    }
+    nav h3{margin:8px 8px 10px; font-size:12px; color:#9fb2cf; text-transform:uppercase; letter-spacing:.1em}
+    .nav-item{
+      display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px; margin:4px 0; cursor:pointer;
+      color:#cfe1ff; border:1px solid transparent
+    }
+    .nav-item.active,.nav-item:hover{background:#111f3f; border-color:#2a3a60}
+    .section{display:none}
+    .section.active{display:block}
+    .panel{
+      background: linear-gradient(180deg,#0f1726,#0e1625); border:1px solid #1f2b47; border-radius:14px; padding:16px;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02), 0 6px 18px rgba(0,0,0,.22);
+    }
+    .grid{display:grid; gap:16px}
+    .grid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .grid.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .kpi{
+      background: linear-gradient(180deg,#0e1b33,#0c1424); border:1px solid #203051; border-radius:14px; padding:14px;
+      display:flex; gap:12px; align-items:center
+    }
+    .kpi .dot{width:12px; height:12px; border-radius:50%; background:var(--accent); box-shadow:0 0 16px rgba(110,231,255,.6)}
+    .kpi .val{font-size:22px; font-weight:700}
+    .muted{color:var(--muted); font-size:12px}
+    .table-wrap{overflow:auto; border:1px solid #1f2b47; border-radius:12px}
+    table{width:100%; border-collapse:collapse; font-size:13px}
+    th,td{padding:10px 12px; border-bottom:1px solid #1a2747}
+    th{position:sticky; top:0; background:#0f1b33; color:#cfe1ff; text-align:left}
+    tr:hover td{background:#0e1a33}
+    .badge{display:inline-block; padding:4px 8px; border-radius:999px; font-size:12px; border:1px solid #2a3a60}
+    .b-active{background:rgba(131,247,167,.12); color:#b0ffd0; border-color:#296c54}
+    .b-suspended{background:rgba(255,122,122,.12); color:#ffc3c3; border-color:#6a3030}
+    .b-expired{background:rgba(255,209,102,.12); color:#ffe6b0; border-color:#7a5f2a}
+    .toolbar{display:flex; gap:8px; flex-wrap:wrap; margin:8px 0 12px}
+    .input{
+      background:#0f1b33; border:1px solid #24365d; color:#dfeaff; padding:9px 10px; border-radius:10px; outline:none; min-width:180px
+    }
+    .input:focus{border-color:#3560a8}
+    .pill-toggle{display:flex; gap:6px; flex-wrap:wrap}
+    .pill{
+      padding:7px 10px; border:1px solid #2a3a60; border-radius:999px; cursor:pointer; font-size:12px; color:#cfe1ff;
+      background:#0e1b33
+    }
+    .pill.active{background:#132753; border-color:#3a5aa0}
+    .footer{opacity:.7; font-size:12px; text-align:center; margin:8px 0 0}
+    .hl{color:#9bffb7}
+    .link{color:#6ee7ff; text-decoration:none}
+    .link:hover{text-decoration:underline}
+    .row{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+    .sep{height:1px; background:#1f2b47; margin:12px 0}
+    .note{font-size:12px; color:#9fb2cf}
+    .empty{opacity:.6; text-align:center; padding:24px}
+    .chip{display:inline-flex; gap:6px; align-items:center; background:#0f1b33; border:1px solid #24365d; padding:6px 9px; border-radius:999px; font-size:12px}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="logo"></div>
+      <div>
+        <h1>FitZone — Membership Ops Console</h1>
+        <div class="note">Single-file demo app • Replit-ready • No backend needed</div>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button class="btn" id="btnExport">Export CSV</button>
+      <button class="btn btn-accent" id="btnSeed">Seed Fresh Demo Data</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <nav>
+      <h3>Navigation</h3>
+      <div class="nav-item active" data-target="dash">🏠 Overview</div>
+      <div class="nav-item" data-target="members">👤 Members</div>
+      <div class="nav-item" data-target="checkins">🕒 Check-ins</div>
+      <div class="nav-item" data-target="analytics">📊 Analytics</div>
+      <div class="nav-item" data-target="settings">⚙️ Settings</div>
+
+      <div class="sep"></div>
+      <h3>Quick Filters</h3>
+      <div class="row">
+        <span class="chip">Active <span id="quickActive">0</span></span>
+        <span class="chip">Suspended <span id="quickSuspended">0</span></span>
+        <span class="chip">Expired <span id="quickExpired">0</span></span>
+      </div>
+
+      <div class="sep"></div>
+      <div class="note">
+        Tip: This app persists to <strong>localStorage</strong>, so your edits survive refresh.<br/>
+        Use <span class="hl">Seed Fresh Demo Data</span> to regenerate realistic members.
+      </div>
+      <div class="footer">© FitZone Demo</div>
+    </nav>
+
+    <main class="grid" id="content">
+
+      <!-- Overview -->
+      <section class="section active" id="dash">
+        <div class="grid cols-3">
+          <div class="kpi panel">
+            <div class="dot"></div>
+            <div>
+              <div class="muted">Total Members</div>
+              <div class="val" id="kpiTotal">—</div>
+            </div>
+          </div>
+          <div class="kpi panel">
+            <div class="dot" style="background:var(--ok)"></div>
+            <div>
+              <div class="muted">Active</div>
+              <div class="val" id="kpiActive">—</div>
+            </div>
+          </div>
+          <div class="kpi panel">
+            <div class="dot" style="background:var(--warn)"></div>
+            <div>
+              <div class="muted">Expiring ≤ 30 days</div>
+              <div class="val" id="kpiExpiringSoon">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid cols-2">
+          <div class="panel">
+            <div class="row" style="justify-content:space-between;">
+              <h3 style="margin:0">Plan Mix</h3>
+              <span class="note">Distribution of membership types</span>
+            </div>
+            <canvas id="chartPlanMix" height="140"></canvas>
+          </div>
+          <div class="panel">
+            <div class="row" style="justify-content:space-between;">
+              <h3 style="margin:0">Status Breakdown</h3>
+              <span class="note">Active vs Suspended vs Expired</span>
+            </div>
+            <canvas id="chartStatus" height="140"></canvas>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="row" style="justify-content:space-between; align-items:end;">
+            <div>
+              <h3 style="margin:0 0 6px;">Upcoming Expiries</h3>
+              <div class="note">Members whose expiry date is within the next 30 days</div>
+            </div>
+            <div class="toolbar">
+              <input class="input" placeholder="Search name or phone…" id="expSearch" />
+            </div>
+          </div>
+          <div class="table-wrap" id="expTableWrap"></div>
+        </div>
+      </section>
+
+      <!-- Members -->
+      <section class="section" id="members">
+        <div class="panel">
+          <div class="row" style="justify-content:space-between; align-items:end;">
+            <div>
+              <h3 style="margin:0 0 6px;">Member Directory</h3>
+              <div class="note">Search, filter, add new members, and edit inline</div>
+            </div>
+            <div class="toolbar">
+              <input class="input" placeholder="Search name/email/phone…" id="memSearch" />
+              <div class="pill-toggle" id="memStatus">
+                <div class="pill active" data-val="All">All</div>
+                <div class="pill" data-val="Active">Active</div>
+                <div class="pill" data-val="Suspended">Suspended</div>
+                <div class="pill" data-val="Expired">Expired</div>
+              </div>
+              <button class="btn" id="btnAdd">Add Member</button>
+            </div>
+          </div>
+          <div class="table-wrap" id="memTableWrap"></div>
+        </div>
+      </section>
+
+      <!-- Check-ins -->
+      <section class="section" id="checkins">
+        <div class="panel">
+          <div class="row" style="justify-content:space-between; align-items:end;">
+            <div>
+              <h3 style="margin:0 0 6px;">Live Check-ins</h3>
+              <div class="note">Simulated gate scans — use the phone number field to “scan”</div>
+            </div>
+            <div class="toolbar">
+              <input class="input" id="scanPhone" placeholder="Enter phone (e.g., +61400111222)" />
+              <button class="btn" id="btnScan">Scan Check-in</button>
+              <button class="btn" id="btnAutoScan">Auto-Simulate</button>
+            </div>
+          </div>
+          <div class="table-wrap" id="checkinsTableWrap"></div>
+        </div>
+      </section>
+
+      <!-- Analytics -->
+      <section class="section" id="analytics">
+        <div class="grid cols-2">
+          <div class="panel">
+            <h3 style="margin:0 0 6px;">Daily Check-ins (Simulated)</h3>
+            <div class="note">Rolling 14-day check-in counts</div>
+            <canvas id="chartCheckins" height="140"></canvas>
+          </div>
+          <div class="panel">
+            <h3 style="margin:0 0 6px;">Retention Curve (Simulated)</h3>
+            <div class="note">Cohort retention over 6 months</div>
+            <canvas id="chartRetention" height="140"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- Settings -->
+      <section class="section" id="settings">
+        <div class="panel">
+          <h3 style="margin:0 0 8px;">Settings</h3>
+          <div class="note">Import/Export and demo controls</div>
+          <div class="sep"></div>
+          <div class="row" style="gap:12px; align-items:center;">
+            <button class="btn" id="btnImport">Import JSON</button>
+            <input type="file" id="fileImport" accept="application/json" style="display:none" />
+            <button class="btn" id="btnDownload">Download JSON</button>
+            <button class="btn" id="btnWipe">Wipe Local Data</button>
+          </div>
+          <div class="sep"></div>
+          <div class="note">
+            This single-file app stores data in your browser’s localStorage.<br/>
+            You can export to JSON (or CSV via Export CSV on the header) and re-import anytime.
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script>
+    /*****************************************************************
+     * SINGLE-FILE APP LOGIC
+     * - In-memory + localStorage DB
+     * - Utilities, rendering, charts, interactions
+     *****************************************************************/
+
+    const LS_KEY = "fitzone.members.v1";
+    const LS_CHECKINS = "fitzone.checkins.v1";
+
+    /** ---------- Demo Data Generator ---------- **/
+    function randChoice(arr){return arr[Math.floor(Math.random()*arr.length)]}
+    function pad(n){return n<10? "0"+n : ""+n}
+    function dateAddDays(d, days){const x=new Date(d); x.setDate(x.getDate()+days); return x}
+    function fmtDate(d){const x = (d instanceof Date)? d : new Date(d); return x.toISOString().slice(0,10)}
+    function daysBetween(a,b){return Math.ceil((new Date(b)-new Date(a))/(1000*60*60*24))}
+    function e164(){ // AU-style random
+      const p = "+61";
+      const body = "4"+Math.floor(10000000+Math.random()*8999999);
+      return p + body;
+    }
+    const first = ["Alex","Sophie","Jack","Ava","Noah","Isla","Liam","Mia","Lucas","Ella","Oliver","Charlotte","Henry","Amelia","Leo","Grace","Thomas","Zoe","Archie","Evie"];
+    const last  = ["Palmer","Reid","West","Nguyen","Brown","Taylor","Harris","Walker","White","Hall","Allen","Young","King","Wright","Scott","Green","Baker","Adams","Hill","Ward"];
+    const plans = ["Basic","Premium","VIP"];
+    const statuses = ["Active","Suspended","Expired"];
+
+    function makeMember(id){
+      const name = randChoice(first)+" "+randChoice(last);
+      const email = name.toLowerCase().replace(/\s+/g,'.')+"@example.com";
+      const phone = e164();
+      const membership_type = randChoice(plans);
+
+      // Join between 2022 and 2025
+      const join = new Date(2022,0,1).getTime() + Math.random()*(new Date(2025,10,1).getTime()-new Date(2022,0,1).getTime());
+      const join_date = fmtDate(new Date(join));
+
+      // Expiry +6 to +18 months from join
+      const months = 6 + Math.floor(Math.random()*12);
+      const jd = new Date(join_date); jd.setMonth(jd.getMonth()+months);
+      const expiry_date = fmtDate(jd);
+
+      // Last checkin within last 120 days
+      const lastDays = Math.floor(Math.random()*120);
+      const last_checkin = fmtDate(dateAddDays(new Date(), -lastDays));
+
+      // Status from expiry
+      let status = "Active";
+      const daysToExpiry = daysBetween(new Date(), expiry_date);
+      if (daysToExpiry < 0) status = "Expired";
+      else if (Math.random()<0.12) status = "Suspended";
+
+      return { id, name, email, phone, membership_type, status, join_date, last_checkin, expiry_date };
+    }
+
+    function seedData(n=120){
+      const arr=[];
+      for(let i=1;i<=n;i++) arr.push(makeMember(i));
+      localStorage.setItem(LS_KEY, JSON.stringify(arr));
+      // seed checkins
+      const ch = [];
+      const now = new Date();
+      for(let d=13; d>=0; d--){
+        const count = 30 + Math.floor(Math.random()*40);
+        const day = fmtDate(dateAddDays(now, -d));
+        for(let i=0;i<count;i++){
+          const memberId = 1 + Math.floor(Math.random()*n);
+          ch.push({ memberId, ts: day+"T"+pad(Math.floor(Math.random()*23))+":"+pad(Math.floor(Math.random()*59))+":00Z" });
+        }
+      }
+      localStorage.setItem(LS_CHECKINS, JSON.stringify(ch));
+      return arr;
+    }
+
+    function loadMembers(){
+      const raw = localStorage.getItem(LS_KEY);
+      if(!raw){
+        return seedData(120);
+      }
+      try { return JSON.parse(raw) } catch { return seedData(120) }
+    }
+    function saveMembers(m){ localStorage.setItem(LS_KEY, JSON.stringify(m)) }
+    function loadCheckins(){
+      const raw = localStorage.getItem(LS_CHECKINS);
+      if(!raw) return [];
+      try { return JSON.parse(raw) } catch { return [] }
+    }
+    function saveCheckins(c){ localStorage.setItem(LS_CHECKINS, JSON.stringify(c)) }
+
+    let MEMBERS = loadMembers();
+    let CHECKINS = loadCheckins();
+
+    /** ---------- UI Helpers ---------- **/
+    const $ = (sel,root=document)=>root.querySelector(sel);
+    const $$= (sel,root=document)=>Array.from(root.querySelectorAll(sel));
+
+    // Navigation
+    $$(".nav-item").forEach(el=>{
+      el.addEventListener("click", ()=>{
+        $$(".nav-item").forEach(n=>n.classList.remove("active"));
+        el.classList.add("active");
+        const tgt = el.dataset.target;
+        $$(".section").forEach(s=>s.classList.remove("active"));
+        $("#"+tgt).classList.add("active");
+        if(tgt==="analytics") drawAnalytics();
+        if(tgt==="dash") { renderKPIs(); renderPlanStatusCharts(); renderExpiries(); }
+        if(tgt==="members") renderMembers();
+        if(tgt==="checkins") renderCheckins();
+      })
+    });
+
+    /** ---------- Export/Import ---------- **/
+    $("#btnDownload").addEventListener("click", ()=>{
+      const blob = new Blob([JSON.stringify(MEMBERS,null,2)], {type:"application/json"});
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "fitzone-members.json";
+      a.click();
+    });
+    $("#btnExport").addEventListener("click", ()=>{
+      const headers = ["id","name","email","phone","membership_type","status","join_date","last_checkin","expiry_date"];
+      const rows = MEMBERS.map(m => headers.map(h => `"${(m[h]??"").toString().replace(/"/g,'""')}"`).join(","));
+      const csv = [headers.join(","), ...rows].join("\n");
+      const blob = new Blob([csv], {type:"text/csv"});
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "fitzone-members.csv";
+      a.click();
+    });
+    $("#btnImport").addEventListener("click", ()=> $("#fileImport").click());
+    $("#fileImport").addEventListener("change", async (e)=>{
+      const file = e.target.files[0]; if(!file) return;
+      const text = await file.text();
+      try{
+        const data = JSON.parse(text);
+        if(Array.isArray(data)){
+          MEMBERS = data; saveMembers(MEMBERS);
+          alert("Imported members.json successfully");
+          renderAll();
+        } else {
+          alert("Invalid JSON: expected an array");
+        }
+      }catch(err){ alert("Invalid JSON file") }
+      e.target.value="";
+    });
+    $("#btnWipe").addEventListener("click", ()=>{
+      if(confirm("Wipe local data? This will reseed demo members.")){
+        localStorage.removeItem(LS_KEY);
+        localStorage.removeItem(LS_CHECKINS);
+        MEMBERS = seedData(120);
+        CHECKINS = loadCheckins();
+        renderAll();
+      }
+    });
+    $("#btnSeed").addEventListener("click", ()=>{
+      MEMBERS = seedData(120); CHECKINS = loadCheckins(); renderAll();
+    });
+
+    /** ---------- KPIs + Charts ---------- **/
+    function computeKPIs(){
+      const total = MEMBERS.length;
+      const active = MEMBERS.filter(m=>m.status==="Active").length;
+      const soon = MEMBERS.filter(m=>{
+        const dd = daysBetween(new Date(), m.expiry_date);
+        return dd>=0 && dd<=30;
+      }).length;
+      return {total, active, soon};
+    }
+    function renderKPIs(){
+      const {total, active, soon} = computeKPIs();
+      $("#kpiTotal").textContent = total;
+      $("#kpiActive").textContent = active;
+      $("#kpiExpiringSoon").textContent = soon;
+      // quick chips
+      $("#quickActive").textContent = active;
+      $("#quickSuspended").textContent = MEMBERS.filter(m=>m.status==="Suspended").length;
+      $("#quickExpired").textContent = MEMBERS.filter(m=>m.status==="Expired").length;
+    }
+
+    let planChart, statusChart;
+    function renderPlanStatusCharts(){
+      const planCounts = {"Basic":0,"Premium":0,"VIP":0};
+      MEMBERS.forEach(m=>{ planCounts[m.membership_type] = (planCounts[m.membership_type]||0)+1; });
+      const statusCounts = {"Active":0,"Suspended":0,"Expired":0};
+      MEMBERS.forEach(m=>{ statusCounts[m.status] = (statusCounts[m.status]||0)+1; });
+
+      const planCtx = $("#chartPlanMix").getContext("2d");
+      const statusCtx = $("#chartStatus").getContext("2d");
+
+      if(planChart) planChart.destroy();
+      if(statusChart) statusChart.destroy();
+
+      planChart = new Chart(planCtx, {
+        type:"doughnut",
+        data:{
+          labels:Object.keys(planCounts),
+          datasets:[{data:Object.values(planCounts)}]
+        },
+        options:{plugins:{legend:{labels:{color:"#dbe7ff"}}}}
+      });
+
+      statusChart = new Chart(statusCtx, {
+        type:"bar",
+        data:{
+          labels:Object.keys(statusCounts),
+          datasets:[{label:"Members", data:Object.values(statusCounts)}]
+        },
+        options:{
+          plugins:{legend:{labels:{color:"#dbe7ff"}}},
+          scales:{x:{ticks:{color:"#cfe1ff"}}, y:{ticks:{color:"#cfe1ff"}}}
+        }
+      });
+    }
+
+    /** ---------- Upcoming Expiries ---------- **/
+    function renderExpiries(){
+      const q = ($("#expSearch").value||"").trim().toLowerCase();
+      const list = MEMBERS.filter(m=>{
+        const dd = daysBetween(new Date(), m.expiry_date);
+        const inRange = dd>=0 && dd<=30;
+        if(!inRange) return false;
+        if(!q) return true;
+        return m.name.toLowerCase().includes(q) || m.phone.includes(q);
+      }).sort((a,b)=>new Date(a.expiry_date)-new Date(b.expiry_date));
+
+      $("#expTableWrap").innerHTML = list.length? tableHTML(list) : `<div class="empty">No upcoming expiries match your filter.</div>`;
+    }
+    $("#expSearch").addEventListener("input", renderExpiries);
+
+    /** ---------- Members directory ---------- **/
+    function badge(status){
+      const cls = status==="Active"?"b-active": status==="Suspended"?"b-suspended":"b-expired";
+      return `<span class="badge ${cls}">${status}</span>`;
+    }
+    function tableHTML(rows){
+      const head = `
+        <table>
+          <thead>
+            <tr>
+              <th style="min-width:56px;">ID</th>
+              <th style="min-width:200px;">Name</th>
+              <th style="min-width:220px;">Email</th>
+              <th style="min-width:160px;">Phone</th>
+              <th>Plan</th>
+              <th>Status</th>
+              <th>Joined</th>
+              <th>Last Check-in</th>
+              <th>Expiry</th>
+              <th style="min-width:120px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+      const body = rows.map(m=>`
+        <tr data-id="${m.id}">
+          <td>${m.id}</td>
+          <td contenteditable="true" data-field="name">${m.name}</td>
+          <td contenteditable="true" data-field="email">${m.email}</td>
+          <td contenteditable="true" data-field="phone">${m.phone}</td>
+          <td contenteditable="true" data-field="membership_type">${m.membership_type}</td>
+          <td>${badge(m.status)}</td>
+          <td contenteditable="true" data-field="join_date">${m.join_date}</td>
+          <td contenteditable="true" data-field="last_checkin">${m.last_checkin}</td>
+          <td contenteditable="true" data-field="expiry_date">${m.expiry_date}</td>
+          <td>
+            <button class="btn btn-sm" data-act="toggle">${m.status==="Active"?"Suspend":"Activate"}</button>
+            <button class="btn btn-sm" data-act="remove">Remove</button>
+          </td>
+        </tr>
+      `).join("");
+      const foot = `</tbody></table>`;
+      return head + body + foot;
+    }
+
+    function renderMembers(){
+      const q = ($("#memSearch").value||"").toLowerCase();
+      const status = $("#memStatus .pill.active").dataset.val;
+      const rows = MEMBERS.filter(m=>{
+        const matchQ = !q || m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q) || m.phone.includes(q);
+        const matchS = status==="All" || m.status===status;
+        return matchQ && matchS;
+      }).sort((a,b)=>a.name.localeCompare(b.name));
+      $("#memTableWrap").innerHTML = rows.length? tableHTML(rows) : `<div class="empty">No members found.</div>`;
+
+      // bind actions & inline edits
+      $$("#memTableWrap [contenteditable]").forEach(cell=>{
+        cell.addEventListener("blur", ()=>{
+          const tr = cell.closest("tr"); const id = +tr.dataset.id;
+          const field = cell.dataset.field;
+          const val = cell.textContent.trim();
+          const idx = MEMBERS.findIndex(m=>m.id===id);
+          if(idx>-1){ MEMBERS[idx][field] = val; saveMembers(MEMBERS); renderAllQuick(); }
+        })
+      });
+      $$("#memTableWrap [data-act='toggle']").forEach(btn=>{
+        btn.addEventListener("click", ()=>{
+          const tr = btn.closest("tr"); const id = +tr.dataset.id;
+          const m = MEMBERS.find(x=>x.id===id); if(!m) return;
+          m.status = (m.status==="Active")? "Suspended" : "Active";
+          saveMembers(MEMBERS); renderMembers(); renderAllQuick();
+        })
+      });
+      $$("#memTableWrap [data-act='remove']").forEach(btn=>{
+        btn.addEventListener("click", ()=>{
+          const tr = btn.closest("tr"); const id = +tr.dataset.id;
+          if(confirm("Remove member #"+id+"?")){
+            MEMBERS = MEMBERS.filter(m=>m.id!==id);
+            saveMembers(MEMBERS); renderMembers(); renderAllQuick();
+          }
+        })
+      });
+    }
+    $("#memSearch").addEventListener("input", renderMembers);
+    $("#memStatus").addEventListener("click", (e)=>{
+      const p = e.target.closest(".pill"); if(!p) return;
+      $$("#memStatus .pill").forEach(x=>x.classList.remove("active"));
+      p.classList.add("active");
+      renderMembers();
+    });
+    $("#btnAdd").addEventListener("click", ()=>{
+      const id = MEMBERS.length? Math.max(...MEMBERS.map(m=>m.id))+1 : 1;
+      const nm = prompt("Full name?"); if(!nm) return;
+      const em = prompt("Email?") || (nm.toLowerCase().replace(/\s+/g,'.')+"@example.com");
+      const ph = prompt("Phone (E.164)?") || e164();
+      const plan = prompt("Plan (Basic/Premium/VIP)?") || "Basic";
+      const join = fmtDate(new Date());
+      const last = fmtDate(new Date());
+      const exp  = fmtDate(dateAddDays(new Date(), 180));
+      const m = { id, name:nm, email:em, phone:ph, membership_type:plan, status:"Active", join_date:join, last_checkin:last, expiry_date:exp };
+      MEMBERS.push(m); saveMembers(MEMBERS); renderMembers(); renderAllQuick();
+    });
+
+    /** ---------- Check-ins ---------- **/
+    function renderCheckins(){
+      const rows = CHECKINS.slice(-200).map(ci=>{
+        const m = MEMBERS.find(x=>x.id===ci.memberId);
+        return { ts: ci.ts, id: ci.memberId, name: m? m.name : "Unknown", phone: m? m.phone : "—" };
+      }).reverse();
+      const html = `
+        <table>
+          <thead><tr><th>Timestamp (UTC)</th><th>ID</th><th>Name</th><th>Phone</th></tr></thead>
+          <tbody>${rows.map(r=>`<tr><td>${r.ts}</td><td>${r.id}</td><td>${r.name}</td><td>${r.phone}</td></tr>`).join("")}</tbody>
+        </table>
+      `;
+      $("#checkinsTableWrap").innerHTML = html;
+    }
+    $("#btnScan").addEventListener("click", ()=>{
+      const ph = $("#scanPhone").value.trim(); if(!ph) return alert("Enter a phone number");
+      const m = MEMBERS.find(x=>x.phone===ph);
+      if(!m) return alert("No member found with that phone.");
+      const ts = new Date().toISOString();
+      CHECKINS.push({ memberId: m.id, ts }); saveCheckins(CHECKINS);
+      m.last_checkin = ts.slice(0,10); saveMembers(MEMBERS);
+      renderCheckins(); renderAllQuick();
+    });
+    let autoSim=null;
+    $("#btnAutoScan").addEventListener("click", ()=>{
+      if(autoSim){ clearInterval(autoSim); autoSim=null; $("#btnAutoScan").textContent="Auto-Simulate"; return; }
+      autoSim = setInterval(()=>{
+        const m = randChoice(MEMBERS);
+        const ts = new Date().toISOString();
+        CHECKINS.push({ memberId:m.id, ts }); saveCheckins(CHECKINS);
+        m.last_checkin = ts.slice(0,10); saveMembers(MEMBERS);
+        if($("#checkins").classList.contains("active")) renderCheckins();
+        renderAllQuick();
+      }, 900);
+      $("#btnAutoScan").textContent="Stop Simulation";
+    });
+
+    /** ---------- Analytics ---------- **/
+    let chartCheckins, chartRetention;
+    function drawAnalytics(){
+      // Daily check-in counts (14 days)
+      const today = new Date();
+      const days = Array.from({length:14}, (_,i)=>fmtDate(dateAddDays(today, i-13)));
+      const counts = days.map(d=> CHECKINS.filter(c=>c.ts.slice(0,10)===d).length );
+      const ctx1 = $("#chartCheckins").getContext("2d");
+      if(chartCheckins) chartCheckins.destroy();
+      chartCheckins = new Chart(ctx1, {
+        type:"line",
+        data:{ labels:days, datasets:[{ label:"Check-ins", data:counts, tension:.25, fill:true }]},
+        options:{ plugins:{legend:{labels:{color:"#dbe7ff"}}}, scales:{x:{ticks:{color:"#cfe1ff"}}, y:{ticks:{color:"#cfe1ff"}}}}
+      });
+
+      // Simple retention curve (simulated)
+      const months=["M1","M2","M3","M4","M5","M6"];
+      const base = 100;
+      let r = [base]; for(let i=1;i<6;i++){ r.push(Math.round(r[i-1]*(0.78+Math.random()*0.06))) }
+      const ctx2 = $("#chartRetention").getContext("2d");
+      if(chartRetention) chartRetention.destroy();
+      chartRetention = new Chart(ctx2, {
+        type:"bar",
+        data:{ labels:months, datasets:[{ label:"Retained", data:r }] },
+        options:{ plugins:{legend:{labels:{color:"#dbe7ff"}}}, scales:{x:{ticks:{color:"#cfe1ff"}}, y:{ticks:{color:"#cfe1ff"}}}}
+      });
+    }
+
+    /** ---------- Utility Renders ---------- **/
+    function renderAll(){
+      renderKPIs(); renderPlanStatusCharts(); renderExpiries(); renderMembers(); renderCheckins();
+    }
+    function renderAllQuick(){ renderKPIs(); renderPlanStatusCharts(); }
+
+    // initial
+    renderAll();
+  </script>
+</body>
+</html>
